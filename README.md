@@ -38,7 +38,7 @@ In the admin editor, use **Free canvas layout** to choose Home, Conclave, Initia
 
 ## Deploy to Vercel
 
-Import this folder into Vercel. Use `npm run build` and `dist` (also set in `vercel.json`). Add the four `VITE_...` values above under **Project → Settings → Environment Variables**, then redeploy after changing them.
+Import this folder into Vercel. The checked-in `vercel.json` installs dependencies with `npm ci --include=dev` (including Vite), runs `npm run build`, and serves `dist`. If you override the install command in Vercel project settings, make sure it still installs dev dependencies. Add the four `VITE_...` values above under **Project → Settings → Environment Variables**, then redeploy after changing them.
 
 In Supabase **Authentication → URL Configuration**, set the Site URL to the deployed Vercel URL and add the local development URL and any Vercel preview URLs you use to the Redirect URLs list.
 
