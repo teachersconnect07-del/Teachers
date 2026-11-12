@@ -32,7 +32,17 @@ The original Teachers Connect HTML design is preserved. The content editor is pr
 
 Without a Supabase row yet, the public site starts with the content bundled in the original HTML. The first admin publish creates the shared row. Admin edits are not public until published.
 
+## Upload or hide an event poster
+
+1. Open `/admin` and sign in.
+2. Select **Event poster** in the editor's left-hand menu.
+3. Choose an image under **Upload image to Cloudinary**. The uploaded image URL is stored in the site's Supabase content.
+4. Select **Show this poster on public pages**, then **Save poster draft** and **Publish changes**. The poster appears in the upper-right corner of public pages.
+5. To temporarily remove it, return to **Event poster**, clear the show checkbox, save the draft, and publish. The uploaded image stays saved and can be shown again later. Upload another image to replace it.
+
 ## Arrange page content
+
+To move or resize the event poster, upload and save it first, then choose **Event poster** in the **Free canvas layout** page selector. Drag the outlined poster to move it and use the slider to resize it. This placement applies across all public pages; **Save layout draft** and **Publish changes** to make it live.
 
 In the admin editor, use **Free canvas layout** to choose Home, Conclave, Initiatives, Updates, or the Article template. Drag a dashed-outline image, text element, card, or section to reposition it; select an element and use the slider to resize it. Layouts are proportional to screen width, including on phones. Select **Save layout draft**, then **Publish changes** to apply it to the public site. Use **Reset this page layout** to clear that page's positioning and sizing.
 

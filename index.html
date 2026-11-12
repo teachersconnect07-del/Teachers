@@ -176,6 +176,14 @@ nav a:hover, nav a[aria-current="page"] { color: var(--green); border-color: #a4
 fieldset { min-width: 0; border: 1px solid var(--line); border-radius: 6px; margin: 5px 0 16px; padding: 12px 14px 0; }
 legend { font-weight: 700; padding: 0 5px; }
 .form-help { color: var(--soft); font-size: .85rem; margin-bottom: 12px; }
+.event-poster { position: fixed; z-index: 30; top: 98px; right: 16px; width: clamp(112px, 14vw, 210px); max-height: min(52vh, 360px); padding: 5px; overflow: hidden; background: white; border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 5px 22px #182c2533; }
+.event-poster img { width: 100%; max-height: min(calc(52vh - 10px), 350px); object-fit: contain; }
+.event-poster-preview { position: absolute; z-index: 1; top: 16px; right: 16px; }
+.poster-design-canvas { position: relative; min-height: 600px; background: var(--paper); }
+.poster-preview { width: min(220px, 100%); margin-bottom: 16px; padding: 6px; background: var(--sage); border: 1px solid var(--line); border-radius: 6px; }
+.poster-preview img { width: 100%; max-height: 320px; object-fit: contain; }
+.poster-toggle { display: flex; align-items: center; gap: 10px; margin-block: 16px 8px; font-size: .94rem; font-weight: 700; }
+.poster-toggle input { width: 18px; min-height: 18px; margin: 0; accent-color: var(--green); }
 
 @media (max-width: 1000px) {
   .wrap { width: calc(100% - 56px); }
@@ -214,6 +222,9 @@ legend { font-weight: 700; padding: 0 5px; }
   .editor-selector { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .editor-tools { padding: 18px; }
   .editor-tools .actions .button { font-size: .84rem; padding: 10px 12px; }
+  .event-poster { top: 108px; right: 9px; width: min(34vw, 145px); max-height: 42vh; }
+  .event-poster img { max-height: calc(42vh - 10px); }
+  .event-poster-preview { top: 16px; right: 9px; }
 }
 @media (max-width: 430px) {
   .form-row { grid-template-columns: 1fr; gap: 0; }
@@ -400,6 +411,19 @@ main:focus { outline: none; }
     };
   }
 
+  function validatePoster(poster = {}) {
+    if (!poster || typeof poster !== "object" || Array.isArray(poster)) {
+      throw new Error("Event poster settings must be an object.");
+    }
+    if (poster.enabled !== undefined && typeof poster.enabled !== "boolean") {
+      throw new Error("Event poster visibility must be enabled or disabled.");
+    }
+    const image = imageValue(poster.image || "", "Event poster image");
+    const enabled = poster.enabled ?? false;
+    if (enabled && !image) throw new Error("Upload an event poster before showing it on the public site.");
+    return { image, enabled };
+  }
+
   function validatePost(post) {
     if (!post || !["initiative", "update"].includes(post.kind)) throw new Error("Choose an initiative or update.");
     const id = field(post.id, "Post ID", 100, true);
@@ -420,7 +444,7 @@ main:focus { outline: none; }
   }
 
   function validateLayouts(layouts = {}) {
-    const pageNames = ["index", "conclave", "initiatives", "updates", "post"];
+    const pageNames = ["index", "conclave", "initiatives", "updates", "post", "poster"];
     if (!layouts || typeof layouts !== "object" || Array.isArray(layouts)) {
       throw new Error("Page layouts must be an object.");
     }
@@ -458,6 +482,7 @@ main:focus { outline: none; }
       version: 1,
       home: validateHome(content.home),
       event: validateEvent(content.event),
+      poster: validatePoster(content.poster),
       posts,
       layouts: validateLayouts(content.layouts)
     };
@@ -481,7 +506,7 @@ main:focus { outline: none; }
     return id;
   }
 
-  const api = { DRAFT_KEY, statusOptions, imageOptions, validate, validateLayouts, validateHome, validateEvent, validatePost, formatDate, eventDate, newId };
+  const api = { DRAFT_KEY, statusOptions, imageOptions, validate, validateLayouts, validateHome, validateEvent, validatePoster, validatePost, formatDate, eventDate, newId };
   if (typeof module !== "undefined") module.exports = api;
   else root.TeacherContent = api;
 })(globalThis);
@@ -550,16 +575,20 @@ function picture(key, cssClass, loading = "lazy") {
     '" loading="' + loading + '" decoding="async">';
 }
 
+function applyPosition(element, position) {
+  if (!element) return;
+  if (!position) {
+    element.style.removeProperty("transform");
+    element.style.removeProperty("transform-origin");
+    return;
+  }
+  element.style.transform = "translate(" + position.x + "vw, " + position.y + "vw) scale(" + position.scale + ")";
+  element.style.transformOrigin = "top left";
+}
+
 function applyLayout(root, layouts) {
   root.querySelectorAll("[data-layout-id]").forEach(element => {
-    const position = layouts?.[element.dataset.layoutId];
-    if (!position) {
-      element.style.removeProperty("transform");
-      element.style.removeProperty("transform-origin");
-      return;
-    }
-    element.style.transform = "translate(" + position.x + "vw, " + position.y + "vw) scale(" + position.scale + ")";
-    element.style.transformOrigin = "top left";
+    applyPosition(element, layouts?.[element.dataset.layoutId]);
   });
 }
 
@@ -711,6 +740,13 @@ function article(content) {
     '</div></article>';
 }
 
+function posterMarkup(poster, preview = false) {
+  if ((!poster.enabled && !preview) || !poster.image) return "";
+  return '<aside class="event-poster' + (preview ? " event-poster-preview" : "") +
+    '" data-layout-id="event-poster" aria-label="Event poster"><img src="' +
+    escapeHtml(poster.image) + '" alt="Event poster"></aside>';
+}
+
 function getDraft() {
   if (sessionDraft) return sessionDraft;
   try {
@@ -754,6 +790,19 @@ function homeForm(home) {
     field("Emphasized headline line", "headlineEmphasis", home.headlineEmphasis, { max: 65, required: true }) +
     field("Introduction", "description", home.description, { type: "textarea", rows: 3, max: 320, required: true }) +
     '<button class="button" type="submit">Save home page draft</button></form>';
+}
+
+function posterForm(poster) {
+  return '<form id="poster-form"><h2>Event poster</h2>' +
+    '<p class="form-help">Upload a poster to Cloudinary. Save this draft and publish changes to show it on the public pages.</p>' +
+    (poster.image ? '<div class="poster-preview"><img src="' + escapeHtml(poster.image) + '" alt="Current event poster"></div>' :
+      '<p class="form-help">No poster uploaded yet.</p>') +
+    field("Cloudinary image URL", "imageUrl", poster.image, { type: "url", max: 1600 }) +
+    imageUploadField("posterImage") +
+    '<label class="poster-toggle"><input type="checkbox" name="showPoster"' +
+    (poster.enabled ? " checked" : "") + '><span>Show this poster on public pages</span></label>' +
+    '<p class="form-help">Turn this off to hide the poster while keeping it saved for later.</p>' +
+    '<button class="button" type="submit">Save poster draft</button></form>';
 }
 
 function eventForm(event) {
@@ -907,11 +956,11 @@ async function editor(published) {
     '<button class="button button-quiet reset-draft" id="reset-draft" type="button">Discard local draft</button></aside>' +
     '<section class="editor-form" id="editor-form"></section></div>' +
     '<section class="design-editor"><div><h2>Free canvas layout</h2>' +
-    '<p>Drag outlined images, text groups, cards, and sections to reposition them. Use the slider to resize. Positions scale with screen width.</p></div>' +
+    '<p>Drag outlined images, text groups, cards, and sections to reposition them. Use the slider to resize. Select Event poster to adjust the poster shown on every public page.</p></div>' +
     '<div class="form-row"><label class="field"><span>Page</span><select id="design-page">' +
     '<option value="index">Home</option><option value="conclave">Conclave</option>' +
     '<option value="initiatives">Initiatives</option><option value="updates">Updates</option>' +
-    '<option value="post">Article template</option></select></label>' +
+    '<option value="post">Article template</option><option value="poster">Event poster</option></select></label>' +
     '<label class="field"><span>Resize selected element</span><input id="design-scale" type="range" min="0.25" max="4" step="0.05" value="1"></label></div>' +
     '<div class="actions"><button class="button" id="save-layout" type="button">Save layout draft</button>' +
     '<button class="button button-quiet" id="reset-layout" type="button">Reset this page layout</button></div>' +
@@ -948,14 +997,15 @@ async function editor(published) {
       ? (draftIsPersistent ? "Local draft saved; changes are not public yet." : "Session draft saved; changes are not public yet.")
       : "Editing the currently published content";
     const selector = document.querySelector("#editor-selector");
-    const choices = [["form:home", "Home page"], ["form:event", "Conclave details"], ["form:new", "+ New post"],
+    const choices = [["form:home", "Home page"], ["form:event", "Conclave details"], ["form:poster", "Event poster"], ["form:new", "+ New post"],
       ...current.posts.map(post => [post.id, post.title])];
     selector.innerHTML = choices.map(([id, label]) => '<button type="button" data-select="' +
       escapeHtml(id) + '" aria-pressed="' + (id === selected) + '">' + escapeHtml(label) + '</button>').join("");
     const post = current.posts.find(item => item.id === selected);
     const emptyPost = { kind: "update", title: "", summary: "", body: "", date: indiaToday(), image: "", linkLabel: "", linkUrl: "" };
     document.querySelector("#editor-form").innerHTML = selected === "form:home" ? homeForm(current.home)
-      : selected === "form:event" ? eventForm(current.event) : postForm(post || emptyPost, !post);
+      : selected === "form:event" ? eventForm(current.event)
+        : selected === "form:poster" ? posterForm(current.poster) : postForm(post || emptyPost, !post);
     drawDesignPreview();
   }
 
@@ -974,6 +1024,10 @@ async function editor(published) {
       if (target === "conclave") return conclave(current.event);
       if (target === "initiatives") return initiatives(current);
       if (target === "updates") return updates(current);
+      if (target === "poster") return '<div class="poster-design-canvas">' +
+        (posterMarkup(current.poster, true) ||
+          '<p class="wrap empty-draft">Upload and save an event poster before adjusting its position and size.</p>') +
+        '</div>';
       return article(current);
     } finally {
       page = previousPage;
@@ -1115,7 +1169,7 @@ async function editor(published) {
     if (!file) return;
     try {
       const imageUrl = await uploadImage(file);
-      const target = { heroImage: "heroImage", imageUrl: "imageUrl" }[input.dataset.cloudinaryTarget];
+      const target = { heroImage: "heroImage", imageUrl: "imageUrl", posterImage: "imageUrl" }[input.dataset.cloudinaryTarget];
       if (!target) throw new Error("Choose a valid image field.");
       const urlInput = editorForm.querySelector('[name="' + target + '"]');
       urlInput.value = imageUrl;
@@ -1135,6 +1189,10 @@ async function editor(published) {
         const updated = model.validateHome(fields);
         setDraft({ ...current, home: updated });
         message("Home page draft saved. Publish changes when ready.");
+      } else if (event.target.id === "poster-form") {
+        const poster = model.validatePoster({ image: fields.imageUrl, enabled: fields.showPoster === "on" });
+        setDraft({ ...current, poster });
+        message("Event poster draft saved. Publish changes when ready.");
       } else if (event.target.id === "event-form") {
         const tracks = [];
         for (let index = 0; index < 8; index++) {
@@ -1309,8 +1367,10 @@ async function start() {
       post: () => article(content)
     };
     main.innerHTML = (isDraft && !draft ? '<p class="wrap empty-draft">Save a draft in the content editor to preview changes. This view shows the content in the file.</p>' : "") +
-      (routes[page] || routes.index)();
+      (routes[page] || routes.index)() + posterMarkup(content.poster);
     applyLayout(main, content.layouts[page] || {});
+    applyPosition(main.querySelector('.event-poster[data-layout-id="event-poster"]'),
+      content.layouts.poster?.["event-poster"]);
   } catch (error) {
     console.error(error);
     main.innerHTML = pageIntro("Content unavailable", "Could not load site content: " + error.message);
